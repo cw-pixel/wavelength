@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wavelength — Multiplayer</title>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -565,9 +565,11 @@ function renderGame() {
   const activeTeam = room.teams[room.activeTeamIdx];
   const phase = room.phase;
 
-  isActiveTeam = activeTeam && activeTeam.players.some(p => p.name === myName && p.id === socket.id);
-  isPsychic = turn && turn.psychicId === socket.id;
-  isOpponent = !isActiveTeam && room.teams.some(t => t.players.some(p => p.id === socket.id));
+  // Identify by name+team (not socket.id) so it survives reconnects.
+  // Server enforces real authorization; client just decides which UI to show.
+  isActiveTeam = activeTeam && activeTeam.players.some(p => p.name === myName) && activeTeam.name === myTeam;
+  isPsychic = room._isPsychic === true; // server sets this flag only on the psychic's socket
+  isOpponent = !isActiveTeam && room.teams.some(t => t.name === myTeam && t.players.some(p => p.name === myName));
 
   // Scoreboard
   const sb = document.getElementById('scoreboard');
@@ -775,8 +777,18 @@ function drawWheel(showTarget, showForPsychic, interactive) {
   canvas.style.cursor = interactive ? 'crosshair' : 'default';
 
   const card = room && room.turn && room.turn.card;
-  const pct = Math.round(dialAngle / 180 * 100);
-  document.getElementById('dialPct').textContent = card ? `${pct}% toward ${card[1]}` : `${pct}%`;
+  const dialPct = Math.round(dialAngle / 180 * 100);
+  // For the psychic during clue phase, show where the TARGET is (not the dial)
+  if (showForPsychic && room.turn && room.turn.targetAngle !== undefined) {
+    const targetPct = Math.round(room.turn.targetAngle / 180 * 100);
+    document.getElementById('dialPct').textContent = card
+      ? `Target: ${targetPct}% toward "${card[1]}"`
+      : `Target: ${targetPct}%`;
+  } else {
+    document.getElementById('dialPct').textContent = card
+      ? `Dial: ${dialPct}% toward "${card[1]}"`
+      : `Dial: ${dialPct}%`;
+  }
 }
 
 // ─── WHEEL INTERACTION ────────────────────────────────────────────────
@@ -794,8 +806,13 @@ function angleFromEvent(e) {
   // centre    (px=0, py=-R): atan2(R, 0)= 90 → gameAngle = 180-90  = 90  ✓
   // far right (px=+R, py=0): atan2(0, 1)=  0 → gameAngle = 180-0   = 180 ✓
   const clampedPy = Math.min(py, 0); // clamp below baseline so dial never flips under
+  // atan2(-py, px): up-is-positive space. Returns 0° (far right) to 180° (far left) for upper semicircle.
+  // Clamp raw deg to [0,180] before mapping to prevent wrap-around at edges.
   const deg = Math.atan2(-clampedPy, px) * 180 / Math.PI;
-  return Math.max(2, Math.min(178, 180 - deg));
+  const clampedDeg = Math.max(0, Math.min(180, deg));
+  // gameAngle: 0 = far left, 180 = far right
+  const gameAngle = 180 - clampedDeg;
+  return Math.max(0, Math.min(180, gameAngle));
 }
 
 function canMove() {
