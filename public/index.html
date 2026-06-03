@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wavelength — Multiplayer</title>
-<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -806,17 +806,17 @@ function drawWheel(showTarget, showForPsychic, interactive) {
   canvas.style.cursor = interactive ? 'crosshair' : 'default';
 
   const card = room && room.turn && room.turn.card;
-  const dialPct = Math.round(dialAngle / 180 * 100);
+  const dialDeg = Math.round(dialAngle);
   // For the psychic during clue phase, show where the TARGET is (not the dial)
   if (showForPsychic && room.turn && room.turn.targetAngle !== undefined) {
-    const targetPct = Math.round(room.turn.targetAngle / 180 * 100);
+    const targetDeg = Math.round(room.turn.targetAngle);
     document.getElementById('dialPct').textContent = card
-      ? `Target: ${targetPct}% toward "${card[1]}"`
-      : `Target: ${targetPct}%`;
+      ? `Target: ${targetDeg}° toward "${card[1]}"`
+      : `Target: ${targetDeg}°`;
   } else {
     document.getElementById('dialPct').textContent = card
-      ? `Dial: ${dialPct}% toward "${card[1]}"`
-      : `Dial: ${dialPct}%`;
+      ? `Dial: ${dialDeg}° toward "${card[1]}"`
+      : `Dial: ${dialDeg}°`;
   }
 }
 
