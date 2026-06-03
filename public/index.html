@@ -639,7 +639,11 @@ function renderGame() {
       actionBtns.innerHTML = '';
     }
   } else if (phase === 'counter') {
-    if (isOpponent) {
+    // Only the non-psychic player(s) on opposing teams can counter-guess
+    const teamPsychics = turn.teamPsychics || {};
+    const myTeamPsychic = teamPsychics[myTeam];
+    const isOpposingGuesser = isOpponent && myName !== myTeamPsychic;
+    if (isOpposingGuesser) {
       actionPanel.style.display = 'flex';
       document.getElementById('actionLabel').textContent = 'Is the target LEFT or RIGHT of the dial? (+1 if correct)';
       actionBtns.innerHTML = `
@@ -649,7 +653,9 @@ function renderGame() {
       `;
     } else {
       actionPanel.style.display = 'flex';
-      document.getElementById('actionLabel').textContent = 'Waiting for opposing team to make their counter-guess…';
+      document.getElementById('actionLabel').textContent = isOpponent
+        ? 'Your psychic cannot counter-guess — waiting for your teammate…'
+        : 'Waiting for opposing team to make their counter-guess…';
       actionBtns.innerHTML = '';
     }
   } else {
@@ -683,10 +689,9 @@ function renderGame() {
       cRes.style.display = 'none';
     }
 
-    // Any non-psychic player can advance — server guards against double-fire
-    // (it checks phase === 'reveal' and immediately transitions to 'clue')
+    // Only the current psychic advances to the next turn
     const nextBtn = document.getElementById('nextTurnBtn');
-    nextBtn.style.display = !isPsychic ? 'block' : 'none';
+    nextBtn.style.display = isPsychic ? 'block' : 'none';
   }
 
   // Wheel
