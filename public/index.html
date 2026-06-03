@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wavelength — Multiplayer</title>
-<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -779,48 +779,44 @@ function drawWheel(showTarget, showForPsychic, interactive) {
 function angleFromEvent(e) {
   const rect = canvas.getBoundingClientRect();
   const sx = canvas.width / rect.width, sy = canvas.height / rect.height;
-  let cx, cy;
-  if (e.touches) { cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
-  else { cx = e.clientX; cy = e.clientY; }
-  const x = (cx - rect.left) * sx - canvas.width / 2;
-  const y = (cy - rect.top) * sy - (canvas.height - 16);
-  const a = Math.atan2(-y, -x) * 180 / Math.PI;
-  return Math.max(2, Math.min(178, a));
+  let clientX, clientY;
+  if (e.touches) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+  else { clientX = e.clientX; clientY = e.clientY; }
+  // pivot is at canvas centre-x, bottom-16px — must match drawWheel cy exactly
+  const x = (clientX - rect.left) * sx - canvas.width / 2;
+  const y = (clientY - rect.top) * sy - (canvas.height - 16);
+  // atan2(y, x) gives angle from positive-x axis; wheel left=0°, right=180°
+  // We want angle increasing left→right along the top arc, so:
+  //   left  end: vector points left  → atan2(0, -1) = 180° → map to 0
+  //   right end: vector points right → atan2(0,  1) = 0°   → map to 180
+  // Clamp y to ≤ 0 so dragging below the baseline doesn't flip the dial
+  const clampedY = Math.min(y, 0);
+  const raw = Math.atan2(-clampedY, x) * 180 / Math.PI; // 0° = right, 180° = left
+  const angle = 180 - raw; // flip so 0 = left, 180 = right
+  return Math.max(2, Math.min(178, angle));
 }
 
 function canMove() {
   return room && room.phase === 'guess' && isActiveTeam && !isPsychic;
 }
 
-canvas.addEventListener('mousedown', e => { if (canMove()) dragging = true; });
-canvas.addEventListener('mousemove', e => {
-  if (!dragging || !canMove()) return;
+function applyDial(e) {
   const a = angleFromEvent(e);
   if (room && room.turn) room.turn.dialAngle = a;
-  drawWheel(false, false, true);
+  drawWheel(false, room.phase === 'clue' && isPsychic, true);
   socket.emit('move_dial', { code: myRoomCode, angle: a });
-});
+}
+
+canvas.addEventListener('mousedown', e => { if (canMove()) { dragging = true; applyDial(e); } });
+canvas.addEventListener('mousemove', e => { if (!dragging || !canMove()) return; applyDial(e); });
 canvas.addEventListener('mouseup', () => dragging = false);
 canvas.addEventListener('mouseleave', () => dragging = false);
 
-canvas.addEventListener('touchstart', e => { if (canMove()) { dragging = true; e.preventDefault(); } }, { passive: false });
-canvas.addEventListener('touchmove', e => {
-  if (!dragging || !canMove()) return;
-  e.preventDefault();
-  const a = angleFromEvent(e);
-  if (room && room.turn) room.turn.dialAngle = a;
-  drawWheel(false, false, true);
-  socket.emit('move_dial', { code: myRoomCode, angle: a });
-}, { passive: false });
+canvas.addEventListener('touchstart', e => { if (canMove()) { dragging = true; e.preventDefault(); applyDial(e); } }, { passive: false });
+canvas.addEventListener('touchmove', e => { if (!dragging || !canMove()) return; e.preventDefault(); applyDial(e); }, { passive: false });
 canvas.addEventListener('touchend', () => dragging = false);
 
-canvas.addEventListener('click', e => {
-  if (!canMove()) return;
-  const a = angleFromEvent(e);
-  if (room && room.turn) room.turn.dialAngle = a;
-  drawWheel(false, false, true);
-  socket.emit('move_dial', { code: myRoomCode, angle: a });
-});
+canvas.addEventListener('click', e => { if (!canMove()) return; applyDial(e); });
 
 // ─── GAME ACTIONS ─────────────────────────────────────────────────────
 function submitClue() {
