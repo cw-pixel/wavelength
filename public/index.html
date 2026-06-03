@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wavelength — Multiplayer</title>
-<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -683,9 +683,10 @@ function renderGame() {
       cRes.style.display = 'none';
     }
 
-    // Only active team's non-psychic (or host) advances turn
+    // Any non-psychic player can advance — server guards against double-fire
+    // (it checks phase === 'reveal' and immediately transitions to 'clue')
     const nextBtn = document.getElementById('nextTurnBtn');
-    nextBtn.style.display = (isActiveTeam && !isPsychic) ? 'block' : 'none';
+    nextBtn.style.display = !isPsychic ? 'block' : 'none';
   }
 
   // Wheel
@@ -703,38 +704,53 @@ function drawWheel(showTarget, showForPsychic, interactive) {
   ctx.clearRect(0, 0, W, H);
   const cx = W / 2, cy = H - 16, R = H - 22;
 
-  // background arc fill — anticlockwise=true keeps each slice in the upper half
+  // background arc fill — use polygon slices to stay reliably in upper half
   for (let i = 0; i < 36; i++) {
-    const sa = Math.PI - deg2rad(i * 5);       // left edge of slice (larger canvas angle)
-    const ea = Math.PI - deg2rad(i * 5 + 5);   // right edge of slice (smaller canvas angle)
+    const startGame = i * 5;
+    const endGame = i * 5 + 5;
     const hue = 210 + (i / 36) * 120;
-    ctx.beginPath(); ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, R, sa, ea, true); ctx.closePath(); // anticlockwise
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    for (let s = 0; s <= 2; s++) {
+      const gAngle = startGame + (endGame - startGame) * s / 2;
+      const a = Math.PI - deg2rad(gAngle);
+      ctx.lineTo(cx + R * Math.cos(a), cy - R * Math.sin(a));
+    }
+    ctx.closePath();
     ctx.fillStyle = `hsla(${hue},38%,22%,0.8)`; ctx.fill();
   }
 
-  // outer border — anticlockwise from π to 0 draws the upper semicircle
-  ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, 0, true);
+  // outer border — draw as polyline along the arc
+  ctx.beginPath();
+  for (let s = 0; s <= 36; s++) {
+    const a = Math.PI - deg2rad(s * 5);
+    const px = cx + R * Math.cos(a), py = cy - R * Math.sin(a);
+    s === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
   ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1; ctx.stroke();
 
-  // target wedge — drawn in the UPPER semicircle (above the pivot)
-  // arcTA = π - gameAngle puts target in [0,π] standard math angle space.
-  // ctx.arc sweeps clockwise by default, so from arcTA+hw → arcTA-hw clockwise
-  // sweeps UPWARD through the arc. Pass anticlockwise=true to go the short way
-  // through the upper half instead of looping under.
+  // target wedge — avoid ctx.arc angle space entirely; use point formula instead
+  // gameAngle 0=left,180=right maps to: x = cx + R*cos(π - gameAngle*π/180)
+  //                                     y = cy - R*sin(π - gameAngle*π/180)
+  // This is the same formula used for the dial line, guaranteed in upper half.
   if ((showTarget || showForPsychic) && room && room.turn && room.turn.targetAngle !== undefined) {
-    const arcTA = Math.PI - deg2rad(room.turn.targetAngle);
     const zones = [
       { half: 24, fill: 'rgba(255,214,102,0.14)', stroke: 'rgba(255,214,102,0.22)' },
       { half: 16, fill: 'rgba(255,214,102,0.26)', stroke: 'rgba(255,214,102,0.4)' },
       { half: 8,  fill: 'rgba(255,214,102,0.5)',  stroke: 'rgba(255,214,102,0.75)' },
     ];
     zones.forEach(z => {
-      const hw = deg2rad(z.half);
-      // Draw wedge: line to arc start, arc counterclockwise (so it stays in upper half), back to pivot
+      // Build wedge as a polygon: pivot → left edge → arc points → right edge → pivot
+      const steps = 12;
+      const startGame = room.turn.targetAngle - z.half;
+      const endGame   = room.turn.targetAngle + z.half;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, R - 2, arcTA + hw, arcTA - hw, true); // anticlockwise=true
+      for (let s = 0; s <= steps; s++) {
+        const gAngle = startGame + (endGame - startGame) * s / steps;
+        const a = Math.PI - deg2rad(gAngle);
+        ctx.lineTo(cx + (R - 2) * Math.cos(a), cy - (R - 2) * Math.sin(a));
+      }
       ctx.closePath();
       ctx.fillStyle = z.fill; ctx.fill();
       ctx.strokeStyle = z.stroke; ctx.lineWidth = 0.5; ctx.stroke();
