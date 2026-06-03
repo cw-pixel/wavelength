@@ -703,23 +703,27 @@ function drawWheel(showTarget, showForPsychic, interactive) {
   ctx.clearRect(0, 0, W, H);
   const cx = W / 2, cy = H - 16, R = H - 22;
 
-  // background arc fill
+  // background arc fill — anticlockwise=true keeps each slice in the upper half
   for (let i = 0; i < 36; i++) {
-    const sa = Math.PI - deg2rad(i * 5 + 5);
-    const ea = Math.PI - deg2rad(i * 5);
+    const sa = Math.PI - deg2rad(i * 5);       // left edge of slice (larger canvas angle)
+    const ea = Math.PI - deg2rad(i * 5 + 5);   // right edge of slice (smaller canvas angle)
     const hue = 210 + (i / 36) * 120;
     ctx.beginPath(); ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, R, sa, ea); ctx.closePath();
+    ctx.arc(cx, cy, R, sa, ea, true); ctx.closePath(); // anticlockwise
     ctx.fillStyle = `hsla(${hue},38%,22%,0.8)`; ctx.fill();
   }
 
-  ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, 0);
+  // outer border — anticlockwise from π to 0 draws the upper semicircle
+  ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI, 0, true);
   ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1; ctx.stroke();
 
-  // target wedge
+  // target wedge — drawn in the UPPER semicircle (above the pivot)
+  // arcTA = π - gameAngle puts target in [0,π] standard math angle space.
+  // ctx.arc sweeps clockwise by default, so from arcTA+hw → arcTA-hw clockwise
+  // sweeps UPWARD through the arc. Pass anticlockwise=true to go the short way
+  // through the upper half instead of looping under.
   if ((showTarget || showForPsychic) && room && room.turn && room.turn.targetAngle !== undefined) {
-    const ta = deg2rad(room.turn.targetAngle);
-    const arcTA = Math.PI - ta;
+    const arcTA = Math.PI - deg2rad(room.turn.targetAngle);
     const zones = [
       { half: 24, fill: 'rgba(255,214,102,0.14)', stroke: 'rgba(255,214,102,0.22)' },
       { half: 16, fill: 'rgba(255,214,102,0.26)', stroke: 'rgba(255,214,102,0.4)' },
@@ -727,21 +731,24 @@ function drawWheel(showTarget, showForPsychic, interactive) {
     ];
     zones.forEach(z => {
       const hw = deg2rad(z.half);
-      ctx.beginPath(); ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, R - 2, arcTA - hw, arcTA + hw); ctx.closePath();
+      // Draw wedge: line to arc start, arc counterclockwise (so it stays in upper half), back to pivot
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R - 2, arcTA + hw, arcTA - hw, true); // anticlockwise=true
+      ctx.closePath();
       ctx.fillStyle = z.fill; ctx.fill();
       ctx.strokeStyle = z.stroke; ctx.lineWidth = 0.5; ctx.stroke();
     });
   }
 
-  // target star on reveal
-  if (showTarget && room && room.turn && room.turn.targetAngle !== undefined) {
+  // target star on reveal (and for psychic — shows exact target position)
+  if ((showTarget || showForPsychic) && room && room.turn && room.turn.targetAngle !== undefined) {
     const arcTA = Math.PI - deg2rad(room.turn.targetAngle);
     const tx = cx + (R - 14) * Math.cos(arcTA);
     const ty = cy - (R - 14) * Math.sin(arcTA);
-    ctx.beginPath(); ctx.arc(tx, ty, 9, 0, Math.PI * 2);
+    ctx.beginPath(); ctx.arc(tx, ty, showTarget ? 9 : 6, 0, Math.PI * 2);
     ctx.fillStyle = '#ffd666'; ctx.fill();
-    ctx.font = 'bold 10px sans-serif'; ctx.fillStyle = '#0a0a0f';
+    ctx.font = `bold ${showTarget ? 10 : 8}px sans-serif`; ctx.fillStyle = '#0a0a0f';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('★', tx, ty);
   }
