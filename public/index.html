@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Wavelength — Multiplayer</title>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -565,10 +565,10 @@ function renderGame() {
   const activeTeam = room.teams[room.activeTeamIdx];
   const phase = room.phase;
 
-  // Identify by name+team (not socket.id) so it survives reconnects.
-  // Server enforces real authorization; client just decides which UI to show.
-  isActiveTeam = activeTeam && activeTeam.players.some(p => p.name === myName) && activeTeam.name === myTeam;
-  isPsychic = room._isPsychic === true; // server sets this flag only on the psychic's socket
+  // Identify by name+team — stable across reconnects. Server enforces real auth.
+  isActiveTeam = !!(activeTeam && activeTeam.name === myTeam && activeTeam.players.some(p => p.name === myName));
+  // isPsychic: am I the psychic THIS turn? Derive from turn data — never loses state.
+  isPsychic = !!(turn && turn.psychicName === myName && turn.teamName === myTeam);
   isOpponent = !isActiveTeam && room.teams.some(t => t.name === myTeam && t.players.some(p => p.name === myName));
 
   // Scoreboard
@@ -639,10 +639,11 @@ function renderGame() {
       actionBtns.innerHTML = '';
     }
   } else if (phase === 'counter') {
-    // Only the non-psychic player(s) on opposing teams can counter-guess
-    const teamPsychics = turn.teamPsychics || {};
-    const myTeamPsychic = teamPsychics[myTeam];
-    const isOpposingGuesser = isOpponent && myName !== myTeamPsychic;
+    // Only the non-psychic player on opposing teams can counter-guess.
+    // teamPsychics maps teamName → psychicName for every team this turn.
+    const teamPsychics = (turn && turn.teamPsychics) || {};
+    const myTeamPsychic = teamPsychics[myTeam]; // psychic of MY team right now
+    const isOpposingGuesser = isOpponent && (myName !== myTeamPsychic);
     if (isOpposingGuesser) {
       actionPanel.style.display = 'flex';
       document.getElementById('actionLabel').textContent = 'Is the target LEFT or RIGHT of the dial? (+1 if correct)';
