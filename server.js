@@ -68,10 +68,12 @@ function sendAllState(room) {
 
 function calcPoints(targetAngle, dialAngle) {
   const dist = Math.abs(targetAngle - dialAngle);
-  if (dist <= 3)  return 5;  // dead center — bonus, no counter
-  if (dist <= 8)  return 4;
-  if (dist <= 14) return 3;
-  if (dist <= 20) return 2;
+  // Thresholds match the visual wedge half-widths exactly:
+  // dead center ±2° (5pt), gold ±4° (4pt), amber ±8° (3pt), orange ±12° (2pt)
+  if (dist <= 2)  return 5;  // dead center — no counter
+  if (dist <= 4)  return 4;
+  if (dist <= 8)  return 3;
+  if (dist <= 12) return 2;
   return 0;
 }
 
