@@ -698,9 +698,10 @@ function drawWheel(showTarget, showForPsychic, interactive) {
   // Target wedge — tighter zones: 4pt=±4°, 3pt=±8°, 2pt=±12°
   if((showTarget||showForPsychic)&&room&&room.turn&&room.turn.targetAngle!==undefined) {
     const zones=[
-      {half:12, fill:'rgba(255,150,50,0.55)',  stroke:'rgba(255,150,50,0.8)'},   // 2pt outer
-      {half:8,  fill:'rgba(255,200,50,0.7)',   stroke:'rgba(255,200,50,0.9)'},   // 3pt middle
-      {half:4,  fill:'rgba(255,214,102,0.95)', stroke:'rgba(255,214,102,1)'},    // 4pt centre
+      {half:12, fill:'rgba(255,120,40,0.55)',  stroke:'rgba(255,120,40,0.8)'},   // 2pt outer  ±12°
+      {half:8,  fill:'rgba(255,185,40,0.72)',  stroke:'rgba(255,185,40,0.9)'},   // 3pt middle ±8°
+      {half:4,  fill:'rgba(255,214,102,0.95)', stroke:'rgba(255,214,102,1)'},    // 4pt centre ±4°
+      {half:2,  fill:'rgba(255,107,138,0.98)', stroke:'rgba(255,107,138,1)'},    // 5pt dead center ±2°
     ];
     zones.forEach(z=>{
       const steps=16;
